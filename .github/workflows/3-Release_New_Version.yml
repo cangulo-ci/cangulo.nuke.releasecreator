@@ -1,0 +1,25 @@
+name: Release New Version
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+    paths:
+      - 'src/**'
+
+jobs:
+  release-new-version:
+    name: Releasing new version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.ACCESS_PUBLIC_REPOS }}
+      - name: Creating Release
+        env:
+          GitHubToken: ${{ secrets.ACCESS_PUBLIC_REPOS }}
+          PullRequestNumber: ${{ github.event.number }}
+          ReleaseSettingsPath: ./cicd/releaseSettings.json
+        run: ./build.cmd CreateRelease
