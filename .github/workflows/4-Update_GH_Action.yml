@@ -1,0 +1,159 @@
+name: Update GH Action v1
+
+on:
+  workflow_dispatch:
+  release:
+    types: [released]
+  workflow_run:
+    workflows: ["Release New Version"]
+    branches: [main]
+    types:
+      - completed
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_ACTION_OWNER: cangulo-actions
+  GH_ACTION_REPO: cangulo.nuke.releasecreator
+
+jobs:
+  publish-project-to-artifact:
+    name: Create dotnet executable artifact
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' || github.event_name == 'release'}}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Publish Executable Solution
+        run: |
+          dotnet publish ./src/cangulo.nuke.releasecreator/cangulo.nuke.releasecreator.csproj \
+            -c Release -o ./artifact  --no-self-contained
+      - name: "Upload Artifact"
+        uses: actions/upload-artifact@v2
+        with:
+          name: executable
+          path: artifact
+          retention-days: 5
+  update-gh-action:
+    needs: publish-project-to-artifact
+    name: Updating GH Action associated with this solution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Get Last Released Version
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          lastVersionReleased="$(gh api graphql -F owner=$OWNER -F name=$REPO -f query='
+                      query GetLastReleasedVersion($name: String!, $owner: String!) {
+                        repository(name: $name, owner: $owner) {
+                          releases(orderBy: {field: CREATED_AT, direction: DESC}, first: 1) {
+                            edges {
+                              node {
+                                tagName
+                              }
+                            }
+                          }
+                        }
+                      }' --jq '.data.repository.releases.edges[0].node.tagName')"
+
+
+          if [[ -z "$lastVersionReleased" ]]; then
+            echo "first version to be released. Setting it to v0.0.1"
+            lastVersionReleased="v0.0.1"
+          else 
+            echo "Last version released of $REPO : $lastVersionReleased"
+          fi 
+
+          releaseBranch="release/$lastVersionReleased"
+          echo "Release Branch in the GH action repo : $releaseBranch"
+
+          # Saving result in env vars
+          echo 'LAST_VERSION_RELEASED='$lastVersionReleased >> $GITHUB_ENV
+          echo 'RELEASE_BRANCH='$releaseBranch >> $GITHUB_ENV
+      - name: Checking for a release branch in the GH action repo
+        run: |
+          branchCount="$(gh api graphql -F owner=$GH_ACTION_OWNER -F name=$GH_ACTION_REPO -F releaseBranch=$RELEASE_BRANCH -f query='
+                            query GetLastReleasedVersion($name: String!, $owner: String!, $releaseBranch: String!) {
+                              repository(name: $name, owner: $owner) {
+                                refs(last: 10, refPrefix: "refs/heads/", query: $releaseBranch) {
+                                  totalCount
+                                }
+                              }
+                            }' --jq '.data.repository.refs.totalCount')"
+
+          if [[ $branchCount == 0 ]] ; then branchExists="false"; else branchExists="true" ; fi
+          echo "release branch exists in the gh action repo: $branchExists"
+
+          # Saving result in env vars
+          echo 'RELEASE_BRANCH_EXISTS='$branchExists >> $GITHUB_ENV
+      - name: "Download Artifact"
+        uses: actions/download-artifact@v2
+        with:
+          name: executable
+          path: artifact
+      - name: Checkout GH Action repo and create the release branch
+        uses: actions/checkout@v2
+        if: ${{ env.RELEASE_BRANCH_EXISTS == 'false'}}
+        with:
+          repository: ${{ format('{0}/{1}', env.GH_ACTION_OWNER, env.GH_ACTION_REPO) }}
+          path: gh-action-code
+          token: ${{ secrets.UPDATE_GH_ACTIONS }}
+      - name: Creating Release Branch and Pushing Changes
+        if: ${{ env.RELEASE_BRANCH_EXISTS == 'false'}}
+        run: |
+          cd ./gh-action-code
+          git checkout -b $RELEASE_BRANCH
+          ../scripts/push-updates-gh-action.sh
+      - name: Checking out the release Branch
+        uses: actions/checkout@v2
+        if: ${{ env.RELEASE_BRANCH_EXISTS == 'true'}}
+        with:
+          repository: ${{ format('{0}/{1}', env.GH_ACTION_OWNER, env.GH_ACTION_REPO) }}
+          path: gh-action-code
+          token: ${{ secrets.UPDATE_GH_ACTIONS }}
+          ref: ${{ env.RELEASE_BRANCH }}
+      - name: Pushing Changes to Release Branch
+        if: ${{ env.RELEASE_BRANCH_EXISTS == 'true'}}
+        run: |
+          cd ./gh-action-code
+          ../scripts/push-updates-gh-action.sh
+      - name: Creating PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.CREATE_PR }}
+        run: |
+          prCount="$(gh api graphql -F owner=$GH_ACTION_OWNER -F name=$GH_ACTION_REPO -F releaseBranch=$RELEASE_BRANCH -f query='
+                            query GetPRforReleaseBranch($name: String!, $owner: String!,$releaseBranch: String!) {
+                              repository(name: $name, owner: $owner) {
+                                pullRequests(last: 1, baseRefName: "main", headRefName: $releaseBranch, states: OPEN) {
+                                  totalCount
+                                }
+                              }
+                            }' --jq '.data.repository.pullRequests.totalCount')"
+
+          if [[ $prCount == 0 ]]; then
+            echo "Creating PR";
+
+            fullRepoName="$GH_ACTION_OWNER/$GH_ACTION_REPO"
+            echo $fullRepoName
+
+            gh pr create --title "Release $LAST_VERSION_RELEASED" \
+              --body "Update GH action with solution version $LAST_VERSION_RELEASED" \
+              --base main \
+              --head $RELEASE_BRANCH \
+              --repo $fullRepoName;
+
+          else 
+            echo "PR already exists";
+          fi
+
+          # In case the PR is created, set it to be auto merge and rebase
+
+          echo "setting PR to be merged when all checks pass"
+
+          echo "gh pr merge $RELEASE_BRANCH --rebase --auto --repo $fullRepoName"
+          
+          gh pr merge $RELEASE_BRANCH \
+            --rebase \
+            --auto  \
+            --delete-branch \
+            --repo $fullRepoName
