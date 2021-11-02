@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "cangulo.nuke.releasecreator": {
+      "commandName": "Project",
+      "commandLineArgs": "-ReleaseSettingsPath ./releaseSettings.json",
+      "workingDirectory": "C:\\repos\\cangulo.nuke.releasecreator"
+    }
+  }
+}

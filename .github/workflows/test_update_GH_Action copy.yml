@@ -1,0 +1,29 @@
+name: Test Update GH Action
+
+on:
+  workflow_dispatch:
+  # release:
+  #   types: [released]
+  workflow_run:
+    workflows: ["Test Token Permissions"]
+    branches: [main]
+    types:
+      - completed
+  # push:
+  #   branches:
+  #     - main
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_ACTION_OWNER: cangulo-actions
+  GH_ACTION_REPO: cangulo.nuke.releasecreator
+
+jobs:
+  test-update:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Create Test Release
+        run: |
+          echo "executed"

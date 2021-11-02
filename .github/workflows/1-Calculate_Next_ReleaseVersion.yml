@@ -1,0 +1,18 @@
+name: Calculate Next Release Number
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  calculate-candidate-version:
+    name: Calculate Next Release Number
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Calculate next release number
+        env:
+          GitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          PullRequestNumber: ${{ github.event.number }}
+          ReleaseSettingsPath: ./cicd/releaseSettings.json
+        run: ./build.cmd CalculateNextReleaseNumber --root .
