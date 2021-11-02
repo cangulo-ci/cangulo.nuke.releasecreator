@@ -1,0 +1,57 @@
+{
+    "VersionTrackerFilePath": "./cicd/versionTracker.json",
+    "conventionalCommitsAllowed": [
+        {
+            "commitType": "fix",
+            "releaseType": "patch"
+        },
+        {
+            "commitType": "patch",
+            "releaseType": "patch"
+        },
+        {
+            "commitType": "refactor",
+            "releaseType": "patch"
+        },
+        {
+            "commitType": "feat",
+            "releaseType": "patch"
+        },
+        {
+            "commitType": "major",
+            "releaseType": "major"
+        },
+        {
+            "commitType": "break",
+            "releaseType": "major"
+        },
+        {
+            "commitType": "docs"
+        },
+        {
+            "commitType": "ci"
+        }
+    ],
+    "changelogSettings": {
+        "changelogPath": "./CHANGELOG.md",
+        "commitsMode": "conventionalCommits",
+        "conventionalCommitsSettings": {
+            "types": [
+                "fix",
+                "patch",
+                "refactor",
+                "feat",
+                "major",
+                "break",
+                "docs"
+            ]
+        }
+    },
+    "updateVersionInCSProjSettings": {
+        "projectPath": "./src/cangulo.nuke.releasecreator/cangulo.nuke.releasecreator.csproj"
+    },
+    "gitPushReleaseFilesSettings": {
+        "email": "carlos.angulo.mascarell@outlook.com",
+        "name": "cangulo.nuke.releasecreator"
+    }
+}
