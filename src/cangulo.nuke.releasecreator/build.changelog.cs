@@ -21,7 +21,6 @@ internal partial class Build : NukeBuild
             {
                 var serviceProvider = SetupServices();
 
-                var releaseBodyBuilder = serviceProvider.GetRequiredService<IReleaseNotesBuilder>();
                 var resultBagRepository = serviceProvider.GetRequiredService<IResultBagRepository>();
 
                 var nextVersion = GetNextVersion(resultBagRepository);
